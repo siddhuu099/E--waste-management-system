@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-white">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Waste Smart</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet Map CSS (for 'Request Pickup' page) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    <!-- Leaflet Map JS (for 'Request Pickup' page) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+    <style>
+        /* Custom styles */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Fix for Leaflet map tiles */
+        .leaflet-container {
+            height: 250px;
+            width: 100%;
+            border-radius: 0.5rem; /* rounded-lg */
+        }
+    </style>
+</head>
+<body class="h-full">
+    <div class="min-h-full flex flex-col">
+        
+        <!-- Header / Navigation Bar -->
+        <header class="bg-white border-b border-gray-200">
+            <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Top">
+                <div class="w-full py-5 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <a href="{{ url_for('home') }}" class="flex items-center space-x-2">
+                            <svg class="h-8 w-auto text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.25 9.75 4.72-4.72M7.5 3v18M7.5 3h-1.5m1.5 0h1.5M7.5 18h-1.5m1.5 0h1.5m0 0v-1.5m0 1.5v1.5m0-1.5a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v1.5a3 3 0 0 0 3 3h1.5a3 3 0 0 0 3-3m-3-3v1.5m0-1.5v-1.5m3 3v1.5m0-1.5v-1.5M3 12h18M3 12h-1.5m1.5 0h1.5m15 0h-1.5m1.5 0h1.5M9 12h1.5m-1.5 0h-1.5m3 0h1.5m-1.5 0h-1.5m3 0h1.5m-1.5 0h-1.5M15 12h1.5m-1.5 0h-1.5m3 0h1.5m-1.5 0h-1.5" />
+                            </svg>
+                            <span class="text-2xl font-bold text-gray-900">E-Waste Smart</span>
+                        </a>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        {% if 'user_id' in session %}
+                            <!-- Logged-in links -->
+                            <a href="{{ url_for('request_pickup') }}" class="text-base font-medium text-gray-600 hover:text-emerald-700">Request Pickup</a>
+                            <a href="{{ url_for('my_pickups') }}" class="text-base font-medium text-gray-600 hover:text-emerald-700">My Pickups</a>
+                            
+                            {% if session.is_admin %}
+                                <a href="{{ url_for('admin_panel') }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-emerald-700 bg-emerald-100 hover:bg-emerald-200">
+                                    Admin Panel
+                                </a>
+                            {% endif %}
+                            
+                            <a href="{{ url_for('logout') }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-red-600 hover:bg-red-700">
+                                Logout
+                            </a>
+
+                        {% else %}
+                            <!-- Logged-out links -->
+                            <a href="{{ url_for('home') }}" class="text-base font-medium text-gray-600 hover:text-emerald-700">Home</a>
+                            <a href="{{ url_for('login') }}" class="text-base font-medium text-gray-600 hover:text-emerald-700">Login</a>
+                            <a href="{{ url_for('register') }}" class="inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-emerald-600 hover:bg-emerald-700">
+                                Get Started
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <!-- Main Content (changes based on route) -->
+        <main class="flex-grow">
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="fixed top-20 right-4 z-50">
+                        {% for category, message in messages %}
+                            <div 
+                                style="{% if category == 'error' %}
+                                    background-color: #fef2f2; color: #991b1b; border-left: 5px solid #dc2626;
+                                {% elif category == 'success' %}
+                                    background-color: #f0fdf4; color: #166534; border-left: 5px solid #22c55e;
+                                {% else %}
+                                    background-color: #eff6ff; color: #1e40af; border-left: 5px solid #3b82f6;
+                                {% endif %}"
+                                class="min-w-[300px] max-w-sm rounded-r-lg shadow-lg p-4 mb-3" 
+                                role="alert"
+                            >
+                                <p class="font-bold">
+                                    {% if category == 'error' %}Error{% elif category == 'success' %}Success{% else %}Info{% endif %}
+                                </p>
+                                <p>{{ message }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+
+            <!-- ------------------- -->
+            <!-- 1. HOME PAGE -->
+            <!-- ------------------- -->
+            {% if current_page == 'home' %}
+            <div class="bg-white">
+                <!-- Hero Section -->
+                <div class="relative bg-emerald-700">
+                    <div class="absolute inset-0">
+                        <!-- Subtle background pattern -->
+                        <div class="absolute inset-0 bg-gradient-to-r from-emerald-800 to-green-700 opacity-80"></div>
+                    </div>
+                    <div class="relative max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+                            <div>
+                                <span class="inline-block bg-emerald-600/50 backdrop-blur-sm text-green-100 px-4 py-1 rounded-full text-sm font-medium shadow-sm">
+                                    Making Earth Greener
+                                </span>
+                                <h1 class="mt-4 text-4xl tracking-tight font-extrabold text-white sm:text-5xl lg:text-6xl">Responsible E-Waste Collection</h1>
+                                <p class="mt-6 text-xl text-emerald-100">Schedule doorstep pickup of your electronic waste. Get paid instantly while saving the planet.</p>
+                                <div class="mt-10 flex space-x-4">
+                                    <a href="{{ url_for('register') }}" class="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-emerald-700 bg-white hover:bg-gray-50">
+                                        Request Pickup
+                                        <svg class="ml-2 -mr-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="hidden md:block">
+                                <div class="bg-white/10 backdrop-blur-lg p-6 rounded-2xl shadow-xl">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="bg-white/20 p-6 rounded-lg text-center">
+                                            <svg class="h-10 w-10 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>
+                                            <p class="text-3xl font-bold text-white mt-2">50K+</p>
+                                            <p class="text-sm text-emerald-100">E-Waste Collected</p>
+                                        </div>
+                                        <div class="bg-white/20 p-6 rounded-lg text-center">
+                                            <svg class="h-10 w-10 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372m-10.75 0a9.38 9.38 0 0 0 2.625.372M12 6.372a9.38 9.38 0 0 1 2.625.372m-10.75 0a9.38 9.38 0 0 1 2.625.372M12 6.372a9.38 9.38 0 0 1 2.625.372M12 6.372a9.38 9.38 0 0 1-2.625.372M12 19.128a9.38 9.38 0 0 1-2.625.372m10.75 0a9.38 9.38 0 0 1-2.625.372m2.625-12.756a9.38 9.38 0 0 1-2.625.372M4.625 12.756a9.38 9.38 0 0 1-2.625.372" /></svg>
+                                            <p class="text-3xl font-bold text-white mt-2">10K+</p>
+                                            <p class="text-sm text-emerald-100">Happy Users</p>
+                                        </div>
+                                        <div class="bg-white/20 p-6 rounded-lg text-center">
+                                            <svg class="h-10 w-10 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0 0 11.667 0l3.181-3.183m-4.991-4.992h-4.992v.001M9.006 19.644l-3.181-3.183a8.25 8.25 0 0 1 11.667 0l3.181 3.183m0 0v-4.992m0 4.992h-4.992m-4.993 0v-4.992m0 0h4.992m4.992 0h-4.992m-4.993 0v-4.992m0 0h4.992m4.992 0h-4.992" /></svg>
+                                            <p class="text-3xl font-bold text-white mt-2">98%</p>
+                                            <p class="text-sm text-emerald-100">Recycling Rate</p>
+                                        </div>
+                                        <div class="bg-white/20 p-6 rounded-lg text-center">
+                                            <svg class="h-10 w-10 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                            <p class="text-3xl font-bold text-white mt-2">24/7</p>
+                                            <p class="text-sm text-emerald-100">Available</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Why Choose Us Section -->
+                <div class="max-w-7xl mx-auto py-24 px-4 sm:px-6 lg:px-8">
+                    <div class="text-center">
+                        <h2 class="text-base font-semibold text-emerald-600 tracking-wide uppercase">Why Choose GreenPickup?</h2>
+                        <p class="mt-2 text-3xl font-extrabold text-gray-900 sm:text-4xl">The most convenient and rewarding way to dispose of electronic waste responsibly</p>
+                    </div>
+                    <div class="mt-20 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <!-- Feature 1 -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <div class="flex-shrink-0">
+                                <div class="inline-flex items-center justify-center h-12 w-12 rounded-md bg-emerald-100 text-emerald-700">
+                                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 0 1-2.827 0l-4.244-4.243a8 8 0 1 1 11.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" /></svg>
+                                </div>
+                            </div>
+                            <h3 class="mt-4 text-lg font-bold text-gray-900">Easy Pickup</h3>
+                            <p class="mt-2 text-base text-gray-600">Select your location on the map and schedule a convenient pickup time.</p>
+                        </div>
+                        <!-- Feature 2 -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <div class="flex-shrink-0">
+                                <div class="inline-flex items-center justify-center h-12 w-12 rounded-md bg-emerald-100 text-emerald-700">
+                                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0 1 12 2.944a11.955 11.955 0 0 1-8.618 3.04A12.02 12.02 0 0 0 3 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                </div>
+                            </div>
+                            <h3 class="mt-4 text-lg font-bold text-gray-900">Secure & Certified</h3>
+                            <p class="mt-2 text-base text-gray-600">All e-waste is processed through certified recycling facilities.</p>
+                        </div>
+                        <!-- Feature 3 -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <div class="flex-shrink-0">
+                                <div class="inline-flex items-center justify-center h-12 w-12 rounded-md bg-emerald-100 text-emerald-700">
+                                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2m2 4h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2Z" /></svg>
+                                </div>
+                            </div>
+                            <h3 class="mt-4 text-lg font-bold text-gray-900">Earn Rewards</h3>
+                            <p class="mt-2 text-base text-gray-600">Get paid for your e-waste based on type and weight.</p>
+                        </div>
+                        <!-- Feature 4 -->
+                        <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200">
+                            <div class="flex-shrink-0">
+                                <div class="inline-flex items-center justify-center h-12 w-12 rounded-md bg-emerald-100 text-emerald-700">
+                                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                </div>
+                            </div>
+                            <h3 class="mt-4 text-lg font-bold text-gray-900">Quick Collection</h3>
+                            <p class="mt-2 text-base text-gray-600">Our agents collect within 24-48 hours of your request.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- How It Works Section -->
+                <div class="bg-gray-50/70 py-24">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="text-center">
+                            <h2 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">How It Works</h2>
+                            <p class="mt-4 text-lg text-gray-600">Four simple steps to responsible e-waste disposal</p>
+                        </div>
+                        <div class="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
+                            <!-- Step 1 -->
+                            <div class="text-center">
+                                <div class="flex items-center justify-center h-20 w-20 rounded-full bg-emerald-600 text-white font-bold text-3xl mx-auto shadow-lg">1</div>
+                                <h3 class="mt-6 text-xl font-bold text-gray-900">Schedule</h3>
+                                <p class="mt-2 text-base text-gray-600">Request a pickup with your location</p>
+                            </div>
+                            <!-- Step 2 -->
+                            <div class="text-center">
+                                <div class="flex items-center justify-center h-20 w-20 rounded-full bg-emerald-600 text-white font-bold text-3xl mx-auto shadow-lg">2</div>
+                                <h3 class="mt-6 text-xl font-bold text-gray-900">Collect</h3>
+                                <p class="mt-2 text-base text-gray-600">Our agent arrives at your doorstep</p>
+                            </div>
+                            <!-- Step 3 -->
+                            <div class="text-center">
+                                <div class="flex items-center justify-center h-20 w-20 rounded-full bg-emerald-600 text-white font-bold text-3xl mx-auto shadow-lg">3</div>
+                                <h3 class="mt-6 text-xl font-bold text-gray-900">Recycle</h3>
+                                <p class="mt-2 text-base text-gray-600">E-waste is processed responsibly</p>
+                            </div>
+                            <!-- Step 4 -->
+                            <div class="text-center">
+                                <div class="flex items-center justify-center h-20 w-20 rounded-full bg-emerald-600 text-white font-bold text-3xl mx-auto shadow-lg">4</div>
+                                <h3 class="mt-6 text-xl font-bold text-gray-900">Earn</h3>
+                                <p class="mt-2 text-base text-gray-600">Receive payment instantly</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CTA Section -->
+                <div class="relative bg-emerald-700">
+                    <div class="absolute inset-0">
+                        <div class="absolute inset-0 bg-gradient-to-r from-emerald-800 to-green-700 opacity-80"></div>
+                    </div>
+                    <div class="relative max-w-7xl mx-auto py-24 px-4 sm:py-32 sm:px-6 lg:px-8 text-center">
+                        <h2 class="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Ready to Make a Difference?</h2>
+                        <p class="mt-4 max-w-xl mx-auto text-xl text-emerald-100">Join thousands of users who are contributing to a cleaner, greener planet. Schedule your first pickup today!</p>
+                        <div class="mt-10 flex justify-center">
+                            <a href="{{ url_for('register') }}" class="inline-flex items-center justify-center px-8 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-emerald-700 bg-white hover:bg-gray-50">
+                                Schedule Pickup Now
+                                <svg class="ml-2 -mr-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ------------------- -->
+            <!-- 2. LOGIN / REGISTER -->
+            <!-- ------------------- -->
+            {% if current_page == 'login' or current_page == 'register' %}
+            <div class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+                <div class="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+                    <div>
+                        <a href="{{ url_for('home') }}" class="flex justify-center items-center space-x-2">
+                            <svg class="h-10 w-auto text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.25 9.75 4.72-4.72M7.5 3v18M7.5 3h-1.5m1.5 0h1.5M7.5 18h-1.5m1.5 0h1.5m0 0v-1.5m0 1.5v1.5m0-1.5a3 3 0 0 0-3-3H6a3 3 0 0 0-3 3v1.5a3 3 0 0 0 3 3h1.5a3 3 0 0 0 3-3m-3-3v1.5m0-1.5v-1.5m3 3v1.5m0-1.5v-1.5M3 12h18M3 12h-1.5m1.5 0h1.5m15 0h-1.5m1.5 0h1.5M9 12h1.5m-1.5 0h-1.5m3 0h1.5m-1.5 0h-1.5m3 0h1.5m-1.5 0h-1.5M15 12h1.5m-1.5 0h-1.5m3 0h1.5m-1.5 0h-1.5" />
+                            </svg>
+                            <span class="text-3xl font-bold text-gray-900">E-Waste Smart</span>
+                        </a>
+                        <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                            {% if current_page == 'login' %}
+                                Sign in to your account
+                            {% else %}
+                                Create your account
+                            {% endif %}
+                        </h2>
+                    </div>
+                    <form class="mt-8 space-y-6" action="{{ url_for(current_page) }}" method="POST">
+                        {% if current_page == 'register' %}
+                            <div class="rounded-md shadow-sm -space-y-px">
+                                <div>
+                                    <label for="name" class="sr-only">Full Name</label>
+                                    <input id="name" name="name" type="text" autocomplete="name" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 focus:z-10 sm:text-sm" placeholder="Full Name">
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="rounded-md shadow-sm -space-y-px">
+                            <div>
+                                <label for="email" class="sr-only">Email address</label>
+                                <input id="email" name="email" type="email" autocomplete="email" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 {% if current_page == 'register' %}rounded-none{% else %}rounded-t-md{% endif %} focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 focus:z-10 sm:text-sm" placeholder="Email address">
+                            </div>
+                            <div>
+                                <label for="password" class="sr-only">Password</label>
+                                <input id="password" name="password" type="password" autocomplete="current-password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 focus:z-10 sm:text-sm" placeholder="Password">
+                            </div>
+                        </div>
+
+                        <div>
+                            <button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                                {% if current_page == 'login' %}Sign in{% else %}Sign up{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                    <p class="mt-2 text-center text-sm text-gray-600">
+                        {% if current_page == 'login' %}
+                            Not a member? <a href="{{ url_for('register') }}" class="font-medium text-emerald-600 hover:text-emerald-500">Register here</a>
+                        {% else %}
+                            Already a member? <a href="{{ url_for('login') }}" class="font-medium text-emerald-600 hover:text-emerald-500">Sign in here</a>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ------------------- -->
+            <!-- 3. REQUEST PICKUP -->
+            <!-- ------------------- -->
+            {% if current_page == 'request_pickup' %}
+            <div class="py-12 bg-gray-50">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center">
+                        <h2 class="text-3xl font-extrabold text-gray-900">Request Pickup</h2>
+                        <p class="mt-4 text-lg text-gray-600">Schedule your e-waste collection</p>
+                    </div>
+                    <div class="mt-10 lg:grid lg:grid-cols-3 lg:gap-8">
+                        <div class="lg:col-span-2">
+                            <form action="{{ url_for('request_pickup') }}" method="POST" class="bg-white shadow-lg rounded-xl p-8 border border-gray-200">
+                                <!-- Pickup Address -->
+                                <div class="mb-6">
+                                    <label for="pickup_address" class="block text-sm font-medium text-gray-700 mb-2">Pickup Address</label>
+                                    <div class="flex space-x-4">
+                                        <input type="text" name="pickup_address" id="pickup_address" class="flex-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm" placeholder="Enter your address" required>
+                                        <button type="button" id="use-gps-btn" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                                            <svg class="h-5 w-5 mr-2 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                                            Use GPS
+                                        </button>
+                                    </div>
+                                    <p id="coords-display" class="mt-1 text-sm text-gray-500"></p>
+                                    <input type="hidden" name="coordinates" id="coordinates" value="">
+                                </div>
+
+                                <!-- Map Container -->
+                                <div id="map" class="rounded-lg overflow-hidden mb-6"></div>
+
+                                <!-- E-Waste Types -->
+                                <div class="mb-6">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">E-Waste Types</label>
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {% for type in ['Mobile Phones', 'Laptops', 'Computers', 'Monitors', 'Printers', 'Batteries', 'TVs', 'Other'] %}
+                                            <div class="relative flex items-start">
+                                                <div class="flex items-center h-5">
+                                                    <input id="waste-{{ type.lower().replace(' ', '-') }}" name="e_waste_types" type="checkbox" value="{{ type }}" class="waste-type-checkbox focus:ring-emerald-500 h-4 w-4 text-emerald-600 border-gray-300 rounded">
+                                                </div>
+                                                <div class="ml-3 text-sm">
+                                                    <label for="waste-{{ type.lower().replace(' ', '-') }}" class="font-medium text-gray-700">{{ type }}</label>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Estimated Weight -->
+                                <div class="mb-6">
+                                    <label for="estimated_weight" class="block text-sm font-medium text-gray-700 mb-2">Estimated Weight (kg)</label>
+                                    <input type="number" step="0.5" name="estimated_weight" id="estimated_weight" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm" placeholder="e.g., 5.5" required>
+                                </div>
+
+                                <!-- Pickup Date and Time -->
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label for="pickup_date" class="block text-sm font-medium text-gray-700 mb-2">Pickup Date</label>
+                                        <input type="date" name="pickup_date" id="pickup_date" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm" required>
+                                    </div>
+                                    <div>
+                                        <label for="pickup_time" class="block text-sm font-medium text-gray-700 mb-2">Pickup Time</label>
+                                        <input type="time" name="pickup_time" id="pickup_time" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm" required>
+                                    </div>
+                                </div>
+
+                                <!-- Phone Number -->
+                                <div class="mb-6">
+                                    <label for="phone_number" class="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                                    <input type="tel" name="phone_number" id="phone_number" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm" placeholder="e.g., +91 12345 67890" required>
+                                </div>
+
+                                <!-- Additional Notes -->
+                                <div class="mb-6">
+                                    <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
+                                    <textarea rows="3" name="notes" id="notes" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm" placeholder="Any special instructions?"></textarea>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div>
+                                    <button type="submit" class="w-full inline-flex justify-center py-3 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                                        Submit Request
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Price Estimate Sidebar -->
+                        <div class="mt-10 lg:mt-0 lg:col-span-1">
+                            <div class="bg-white shadow-lg rounded-xl p-8 border border-gray-200 sticky top-6">
+                                <h3 class="text-lg font-bold text-gray-900 mb-4">Price Estimate</h3>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Items Selected</span>
+                                        <span id="items-selected" class="font-medium">0</span>
+                                    </div>
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Total Weight</span>
+                                        <span id="total-weight" class="font-medium">0 kg</span>
+                                    </div>
+                                    <div class="border-t border-gray-200 pt-3 flex justify-between">
+                                        <span class="text-gray-600">Estimated Value</span>
+                                        <span id="estimated-value" class="text-xl font-bold text-emerald-600">₹0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ------------------- -->
+            <!-- 4. MY PICKUPS -->
+            <!-- ------------------- -->
+            {% if current_page == 'my_pickups' %}
+            <div class="py-12 bg-gray-50">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center">
+                        <h2 class="text-3xl font-extrabold text-gray-900">My Pickups</h2>
+                        <p class="mt-4 text-lg text-gray-600">Track your e-waste collection requests</p>
+                    </div>
+                    <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- Stat 1: Total Requests -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-blue-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Requests</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">{{ stats.total_requests }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Stat 2: Pending -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-yellow-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Pending</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">{{ stats.pending }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Stat 3: Completed -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-green-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Completed</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">{{ stats.completed }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Stat 4: Total Earned -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-purple-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Earned</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">₹{{ "%.0f"|format(stats.total_earned) }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Requests List -->
+                    <div class="mt-12 bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="p-6 border-b border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-900">Your Pickup Requests</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items (Weight)</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% if requests %}
+                                        {% for req in requests %}
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ req.id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">{{ req.pickup_address }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                {% set items_list = json.loads(req.e_waste_types or '[]') %}
+                                                {{ items_list | length }} items ({{ req.estimated_weight }} kg)
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                <div>{{ req.pickup_date }}</div>
+                                                <div>{{ req.pickup_time }}</div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium
+                                                    {% if req.status == 'Pending' %} bg-yellow-100 text-yellow-800
+                                                    {% elif req.status == 'Accepted' %} bg-blue-100 text-blue-800
+                                                    {% elif req.status == 'On the Way' %} bg-purple-100 text-purple-800
+                                                    {% elif req.status == 'Completed' or req.status == 'Recycled' %} bg-green-100 text-green-800
+                                                    {% elif req.status == 'Cancelled' %} bg-red-100 text-red-800
+                                                    {% else %} bg-gray-100 text-gray-800
+                                                    {% endif %}
+                                                ">
+                                                    {{ req.status }}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium 
+                                                {% if req.status == 'Completed' or req.status == 'Recycled' %} text-green-600 {% else %} text-gray-600 {% endif %}">
+                                                ₹{{ "%.0f"|format(req.estimated_value if req.estimated_value else (json.loads(req.e_waste_types or '[]') | length * 50) + (req.estimated_weight * 20)) }}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                                                No pickup requests found. <a href="{{ url_for('request_pickup') }}" class="text-emerald-600 hover:text-emerald-500">Request a pickup</a>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- ------------------- -->
+            <!-- 5. ADMIN PANEL -->
+            <!-- ------------------- -->
+            {% if current_page == 'admin' %}
+            <div class="py-12 bg-gray-50">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center">
+                        <h2 class="text-3xl font-extrabold text-gray-900">Admin Dashboard</h2>
+                        <p class="mt-4 text-lg text-gray-600">Manage pickup requests and users</p>
+                    </div>
+                    <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <!-- Stat 1: Total Requests -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-blue-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Requests</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">{{ stats.total_requests or 0 }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Stat 2: Pending Approval -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-yellow-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-yellow-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Pending Approval</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">{{ stats.pending_approval or 0 }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Stat 3: Total Weight -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-green-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10.5 11.25h3M12 15V7.5" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Weight</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">{{ "%.1f"|format(stats.total_weight or 0) }} kg</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Stat 4: Total Value -->
+                        <div class="bg-white overflow-hidden shadow-lg rounded-xl border border-gray-200">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="bg-purple-100 p-3 rounded-lg">
+                                            <svg class="h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+                                        </div>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Value</dt>
+                                            <dd class="text-3xl font-bold text-gray-900">₹{{ "%.0f"|format(stats.total_value or 0) }}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- All Pickup Requests Table -->
+                    <div class="mt-12 bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="p-6 border-b border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-900">All Pickup Requests</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items (Weight)</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Edit</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% if all_requests %}
+                                        {% for req in all_requests %}
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ req.id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm font-medium text-gray-900">{{ req.user_name }}</div>
+                                                <div class="text-sm text-gray-500">{{ req.user_email }}</div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">{{ req.pickup_address }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                {% set items_list = json.loads(req.e_waste_types or '[]') %}
+                                                {{ items_list | length }} items ({{ req.estimated_weight }} kg)
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                <div>{{ req.pickup_date }}</div>
+                                                <div>{{ req.pickup_time }}</div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <form action="{{ url_for('update_request_status', request_id=req.id) }}" method="POST">
+                                                    <select name="status" onchange="this.form.submit()" class="rounded-md border-gray-300 shadow-sm focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm
+                                                        {% if req.status == 'Pending' %} bg-yellow-100 text-yellow-800 border-yellow-300
+                                                        {% elif req.status == 'Accepted' %} bg-blue-100 text-blue-800 border-blue-300
+                                                        {% elif req.status == 'On the Way' %} bg-purple-100 text-purple-800 border-purple-300
+                                                        {% elif req.status == 'Completed' or req.status == 'Recycled' %} bg-green-100 text-green-800 border-green-300
+                                                        {% elif req.status == 'Cancelled' %} bg-red-100 text-red-800 border-red-300
+                                                        {% else %} bg-gray-100 text-gray-800 border-gray-300
+                                                        {% endif %}
+                                                    ">
+                                                        <option value="Pending" {% if req.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                                        <option value="Accepted" {% if req.status == 'Accepted' %}selected{% endif %}>Accepted</option>
+                                                        <option value="On the Way" {% if req.status == 'On the Way' %}selected{% endif %}>On the Way</option>
+                                                        <option value="Completed" {% if req.status == 'Completed' %}selected{% endif %}>Completed</option>
+                                                        <option value="Recycled" {% if req.status == 'Recycled' %}selected{% endif %}>Recycled</option>
+                                                        <option value="Cancelled" {% if req.status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                                                    </select>
+                                                </form>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                ₹{{ "%.0f"|format(req.estimated_value if req.estimated_value else (json.loads(req.e_waste_types or '[]') | length * 50) + (req.estimated_weight * 20)) }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <a href="#" class="text-emerald-600 hover:text-emerald-900">Details</a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+                                                No pickup requests found.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- All Users Table -->
+                    <div class="mt-12 bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="p-6 border-b border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-900">All Users</h2>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% if all_users %}
+                                        {% for u in all_users %}
+                                        <tr>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{{ u.id }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ u.name }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ u.email }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                {% if u.is_admin %}
+                                                <span class="px-3 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Admin</span>
+                                                {% else %}
+                                                <span class="px-3 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">User</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="px-6 py-12 text-center text-gray-500">
+                                                No users found.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            {% endif %}
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800">
+            <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+                <p class="text-center text-base text-gray-400">&copy; 2025 E-Waste Smart. Recycle Responsibly.</p>
+            </div>
+        </footer>
+
+    </div>
+    
+    <!-- JavaScript for 'Request Pickup' Page -->
+    {% if current_page == 'request_pickup' %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- Map Initialization ---
+            // Set initial view to a default location (e.g., New Delhi)
+            var map = L.map('map').setView([28.6139, 77.2090], 12);
+            var marker = L.marker([28.6139, 77.2090], { draggable: true }).addTo(map);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            function updateCoords(latlng) {
+                document.getElementById('coordinates').value = `${latlng.lat}, ${latlng.lng}`;
+                document.getElementById('coords-display').textContent = `Selected location: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+            }
+
+            // Update on map click
+            map.on('click', function(e) {
+                marker.setLatLng(e.latlng);
+                updateCoords(e.latlng);
+            });
+
+            // Update on marker drag
+            marker.on('dragend', function(e) {
+                updateCoords(marker.getLatLng());
+            });
+
+            // Initialize display
+            updateCoords(marker.getLatLng());
+
+            // --- Use GPS Button ---
+            document.getElementById('use-gps-btn').addEventListener('click', function() {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(function(position) {
+                        var lat = position.coords.latitude;
+                        var lng = position.coords.longitude;
+                        var latlng = L.latLng(lat, lng);
+                        
+                        marker.setLatLng(latlng);
+                        map.setView(latlng, 15); // Zoom in to user's location
+                        updateCoords(latlng);
+                        
+                        // Simple reverse geocoding (optional, but nice)
+                        // This uses a free API, might be rate-limited
+                        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.display_name) {
+                                    document.getElementById('pickup_address').value = data.display_name;
+                                }
+                            })
+                            .catch(err => console.log("Error fetching address: ", err));
+                            
+                    }, function(error) {
+                        // Use a custom modal here instead of alert()
+                        console.error("Could not get your location. Please enter your address manually.");
+                    });
+                } else {
+                    // Use a custom modal here instead of alert()
+                    console.error("Geolocation is not supported by your browser.");
+                }
+            });
+
+            // --- Price Estimate Logic ---
+            var checkboxes = document.querySelectorAll('.waste-type-checkbox');
+            var weightInput = document.getElementById('estimated_weight');
+            
+            var itemsSelectedEl = document.getElementById('items-selected');
+            var totalWeightEl = document.getElementById('total-weight');
+            var estimatedValueEl = document.getElementById('estimated-value');
+            
+            // Dummy price per kg
+            var PRICE_PER_KG = 30; 
+            // Dummy price per item (for things that have value regardless of weight)
+            var PRICE_PER_ITEM = 10; 
+            
+            function updateEstimate() {
+                // FIX: Removed extra '.' before length
+                var itemsCount = document.querySelectorAll('.waste-type-checkbox:checked').length;
+                var weight = parseFloat(weightInput.value) || 0;
+                
+                // Calculate estimated value (this is a simple, dummy calculation)
+                var valueByWeight = weight * PRICE_PER_KG;
+                var valueByItems = itemsCount * PRICE_PER_ITEM;
+                // Use the higher of the two, plus a base
+                var totalValue = valueByWeight + valueByItems; 
+                
+                itemsSelectedEl.textContent = itemsCount;
+                totalWeightEl.textContent = `${weight} kg`;
+                estimatedValueEl.textContent = `₹${Math.round(totalValue)}`;
+            }
+            
+            checkboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', updateEstimate);
+            });
+            weightInput.addEventListener('input', updateEstimate);
+
+            // Set minimum date for pickup_date to today
+            var today = new Date().toISOString().split('T')[0];
+            document.getElementById('pickup_date').setAttribute('min', today);
+        });
+    </script>
+    {% endif %}
+
+</body>
+</html>
