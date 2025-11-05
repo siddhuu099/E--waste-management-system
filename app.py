@@ -8,6 +8,7 @@ import datetime
 
 # --- Configuration ---
 app = Flask(__name__)
+# YOU MUST CHANGE THIS in a real application
 app.secret_key = 'your_super_secret_key_12345'
 DATABASE = 'e_waste.db'
 ADMIN_EMAIL = 'admin@app.com'
@@ -50,7 +51,7 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 
                 pickup_address TEXT,
-                coordinates TEXT, -- Added coordinates
+                coordinates TEXT, -- For the map
                 e_waste_types TEXT, -- Stored as JSON string
                 estimated_weight REAL,
                 pickup_date TEXT,
@@ -68,6 +69,7 @@ def init_db():
     print(f"Database {DATABASE} initialized and tables created.")
 
 # Run this once to ensure the database and tables exist
+# (You may need to run this from a Python shell: `from app import init_db; init_db()`)
 init_db()
 
 # --- Admin Decorator ---
@@ -98,10 +100,10 @@ def get_current_user_requests(user_id):
     for row in requests_data:
         req = dict(row)
         try:
-            # Create the list here
+            # FIX: Create the list here in Python
             req['e_waste_types_list'] = json.loads(req['e_waste_types'])
-        except:
-            req['e_waste_types_list'] = [] 
+        except (json.JSONDecodeError, TypeError):
+            req['e_waste_types_list'] = [] # Handle empty or invalid data
         
         try:
             req['created_at'] = datetime.datetime.strptime(req['created_at'], '%Y-%m-%d %H:%M:%S')
@@ -143,6 +145,7 @@ def register():
             return render_template('index.html', current_page='register')
 
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        # Check for admin email
         is_admin = 1 if email == ADMIN_EMAIL else 0
         
         try:
@@ -202,6 +205,7 @@ def login():
 
 @app.route('/dashboard')
 def dashboard():
+    # Redirect old links to the new page
     user_id = session.get('user_id')
     if not user_id:
         return redirect(url_for('login'))
@@ -217,7 +221,7 @@ def my_pickups():
         return redirect(url_for('login'))
     
     user = get_user_by_id(user_id)
-    requests_data = get_current_user_requests(user_id)
+    requests_data = get_current_user_requests(user_id) # This list now contains 'e_waste_types_list'
     
     stats = {
         'total_requests': len(requests_data),
@@ -244,7 +248,7 @@ def request_pickup():
     if request.method == 'POST':
         try:
             pickup_address = request.form.get('pickup_address')
-            coordinates = request.form.get('coordinates')
+            coordinates = request.form.get('coordinates') # Get map coordinates
             e_waste_types = request.form.getlist('e_waste_types')
             e_waste_types_json = json.dumps(e_waste_types)
             
@@ -291,13 +295,13 @@ def logout():
 
 # --- ADMIN ROUTES ---
 
-@app.route('/admin_panel') 
+@app.route('/admin_panel') # Route name matches url_for()
 @admin_required
 def admin_panel():
     db = get_db()
     
     # 1. Get stats
-    stats = db.execute('''
+    stats_data = db.execute('''
         SELECT 
             COUNT(*) as total_requests,
             SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) as pending_approval,
@@ -305,6 +309,7 @@ def admin_panel():
             SUM(estimated_value) as total_value
         FROM requests
     ''').fetchone()
+    stats = dict(stats_data) if stats_data else {}
     
     # 2. Get all users
     all_users = db.execute('SELECT id, name, email, is_admin FROM users ORDER BY name').fetchall()
@@ -317,8 +322,7 @@ def admin_panel():
         ORDER BY r.created_at DESC
     ''').fetchall()
     
-    # --- FIX IS HERE ---
-    # Process the JSON string in Python before sending to template
+    # --- FIX: Process JSON in Python ---
     all_requests = []
     for row in all_requests_raw:
         req = dict(row)
@@ -332,7 +336,7 @@ def admin_panel():
     return render_template(
         'index.html', 
         current_page='admin',
-        stats=dict(stats) if stats else {},
+        stats=stats,
         all_users=[dict(row) for row in all_users],
         all_requests=all_requests # Pass the processed list
     )
@@ -356,7 +360,7 @@ def update_request_status(request_id):
 
 # Run the app
 if __name__ == '__main__':
-    # Make sure to delete e_waste.db before first run with new schema
-    # init_db() 
+    # Important: Delete your old 'e_waste.db' file before running
+    # this for the first time so the 'coordinates' column is added.
     app.run(debug=True)
     
